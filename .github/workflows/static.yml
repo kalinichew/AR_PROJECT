@@ -1,0 +1,48 @@
+# .github/workflows/deploy.yml
+name: Deploy static content to Pages
+
+on:
+  # Запускаем при пуше в main
+  push:
+    branches: ["main"]
+
+  # Можно запустить руками через Actions
+  workflow_dispatch:
+
+# Даем права на Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Чтобы не накладывались несколько деплоев
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      # Шаг 1. Скачиваем репозиторий
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Шаг 2. Настройка Pages
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # Шаг 3. Загружаем артефакты (всю папку проекта)
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      # Шаг 4. Деплой на GitHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
