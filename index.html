@@ -8,8 +8,57 @@
   <!-- A-Frame 1.4.2 -->
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 
-  <!-- MindAR.js для image tracking -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
+  <!-- MindAR.js для image tracking - используем более стабильную версию -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+
+  <!-- Альтернативная загрузка MindAR если основная не работает -->
+  <script>
+    // Проверяем загрузку MindAR
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        if (typeof AFRAME === 'undefined') {
+          console.error('A-Frame не загружен');
+          return;
+        }
+        
+        if (!AFRAME.components['mindar-image']) {
+          console.warn('MindAR не загружен, пробуем альтернативную версию...');
+          // Загружаем альтернативную версию
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js';
+          script.onload = function() {
+            console.log('MindAR загружен альтернативно');
+            initAR();
+          };
+          script.onerror = function() {
+            console.error('Не удалось загрузить MindAR');
+            showError('Не удалось загрузить AR компоненты. Попробуйте обновить страницу.');
+          };
+          document.head.appendChild(script);
+        } else {
+          console.log('MindAR загружен успешно');
+          initAR();
+        }
+      }, 1000); // Даем время на загрузку
+    });
+
+    function initAR() {
+      // Инициализация AR компонентов
+      if (typeof AFRAME !== 'undefined' && AFRAME.components['mindar-image']) {
+        console.log('AR компоненты готовы');
+        document.getElementById('startButton').disabled = false;
+      }
+    }
+
+    function showError(message) {
+      const errorText = document.getElementById('errorText');
+      const errorMessage = document.getElementById('errorMessage');
+      if (errorText && errorMessage) {
+        errorText.textContent = message;
+        errorMessage.style.display = 'block';
+      }
+    }
+  </script>
 
   <style>
     body, html { 
@@ -108,7 +157,7 @@
 <body>
 
 <!-- Кнопка для старта AR -->
-<button id="startButton">🚀 Start AR Experience</button>
+<button id="startButton" disabled>🚀 Loading AR Components...</button>
 
 <!-- Индикатор загрузки -->
 <div id="loadingIndicator">
@@ -152,7 +201,7 @@
       height="0.56"
       position="0 0 0">
     </a-video>
-  </entity>
+  </a-entity>
 </a-scene>
 
 <script>
@@ -163,16 +212,37 @@
   const errorText = document.getElementById("errorText");
   const instructions = document.getElementById("instructions");
 
+  // Функция для проверки готовности AR компонентов
+  function checkARComponents() {
+    return new Promise((resolve, reject) => {
+      let attempts = 0;
+      const maxAttempts = 20; // 10 секунд максимум
+      
+      const check = () => {
+        attempts++;
+        
+        if (typeof AFRAME !== 'undefined' && AFRAME.components['mindar-image']) {
+          console.log('AR компоненты готовы');
+          resolve(true);
+        } else if (attempts >= maxAttempts) {
+          reject(new Error('AR компоненты не загрузились за отведенное время'));
+        } else {
+          setTimeout(check, 500);
+        }
+      };
+      
+      check();
+    });
+  }
+
   startButton.addEventListener("click", async () => {
     try {
+      // Проверяем готовность AR компонентов
+      await checkARComponents();
+      
       // Проверяем поддержку WebAR
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("WebAR is not supported in this browser");
-      }
-
-      // Проверяем поддержку MindAR
-      if (typeof AFRAME === 'undefined' || !AFRAME.components['mindar-image']) {
-        throw new Error("AR components not loaded properly");
       }
 
       // Скрываем кнопку и показываем загрузку
@@ -226,6 +296,8 @@
         errorMessageText = "Your browser doesn't support WebAR features.";
       } else if (error.message.includes('WebAR')) {
         errorMessageText = "WebAR is not supported in this browser. Try using Chrome or Safari on mobile.";
+      } else if (error.message.includes('AR компоненты')) {
+        errorMessageText = "AR components failed to load. Please refresh the page and try again.";
       }
       
       errorText.textContent = errorMessageText;
