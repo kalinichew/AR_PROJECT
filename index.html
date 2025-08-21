@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Magic Album AR</title>
 
   <!-- A-Frame 1.4.2 -->
@@ -11,27 +12,122 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    body, html { 
+      margin: 0; 
+      padding: 0; 
+      height: 100%; 
+      overflow: hidden; 
+      font-family: Arial, sans-serif;
+    }
+    
     #startButton {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      padding: 15px 30px;
-      font-size: 18px;
-      background: #007bff;
+      padding: 20px 40px;
+      font-size: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
       border: none;
-      border-radius: 8px;
+      border-radius: 25px;
       cursor: pointer;
       z-index: 999;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
+    }
+    
+    #startButton:hover {
+      transform: translate(-50%, -50%) scale(1.05);
+      box-shadow: 0 12px 35px rgba(0,0,0,0.4);
+    }
+    
+    #startButton:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    
+    #loadingIndicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: white;
+      z-index: 998;
+      display: none;
+    }
+    
+    .spinner {
+      border: 4px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top: 4px solid white;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    #errorMessage {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255,0,0,0.9);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      z-index: 997;
+      display: none;
+      max-width: 300px;
+    }
+    
+    #instructions {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 15px 25px;
+      border-radius: 20px;
+      text-align: center;
+      z-index: 996;
+      display: none;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
 
 <!-- Кнопка для старта AR -->
-<button id="startButton">Start AR</button>
+<button id="startButton">🚀 Start AR Experience</button>
+
+<!-- Индикатор загрузки -->
+<div id="loadingIndicator">
+  <div class="spinner"></div>
+  <div>Initializing AR...</div>
+  <div style="font-size: 12px; margin-top: 10px;">Please allow camera access</div>
+</div>
+
+<!-- Сообщение об ошибке -->
+<div id="errorMessage">
+  <h3>⚠️ Error</h3>
+  <div id="errorText"></div>
+  <button onclick="location.reload()" style="margin-top: 15px; padding: 10px 20px; background: white; color: red; border: none; border-radius: 5px; cursor: pointer;">Retry</button>
+</div>
+
+<!-- Инструкции -->
+<div id="instructions">
+  📱 Point your camera at the target image to see the magic!
+</div>
 
 <a-scene
   mindar-image="imageTargetSrc: ./targets.mind;"
@@ -56,22 +152,96 @@
       height="0.56"
       position="0 0 0">
     </a-video>
-  </a-entity>
+  </entity>
 </a-scene>
 
 <script>
   const startButton = document.getElementById("startButton");
   const scene = document.getElementById("ar-scene");
+  const loadingIndicator = document.getElementById("loadingIndicator");
+  const errorMessage = document.getElementById("errorMessage");
+  const errorText = document.getElementById("errorText");
+  const instructions = document.getElementById("instructions");
 
   startButton.addEventListener("click", async () => {
-    // Показываем сцену и скрываем кнопку
-    scene.style.display = "block";
-    startButton.style.display = "none";
+    try {
+      // Проверяем поддержку WebAR
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("WebAR is not supported in this browser");
+      }
 
-    // Запускаем MindAR
-    const mindarComponent = scene.components["mindar-image"];
-    if(mindarComponent) {
-      await mindarComponent.start();
+      // Проверяем поддержку MindAR
+      if (typeof AFRAME === 'undefined' || !AFRAME.components['mindar-image']) {
+        throw new Error("AR components not loaded properly");
+      }
+
+      // Скрываем кнопку и показываем загрузку
+      startButton.style.display = "none";
+      loadingIndicator.style.display = "block";
+
+      // Запрашиваем доступ к камере
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+
+      // Показываем сцену
+      scene.style.display = "block";
+      loadingIndicator.style.display = "none";
+      instructions.style.display = "block";
+
+      // Запускаем MindAR
+      const mindarComponent = scene.components["mindar-image"];
+      if (mindarComponent) {
+        await mindarComponent.start();
+        
+        // Добавляем обработчики событий
+        scene.addEventListener('renderstart', () => {
+          console.log('AR Scene started');
+        });
+        
+        scene.addEventListener('targetFound', () => {
+          console.log('Target found!');
+        });
+        
+        scene.addEventListener('targetLost', () => {
+          console.log('Target lost');
+        });
+      }
+
+    } catch (error) {
+      console.error('AR initialization error:', error);
+      loadingIndicator.style.display = "none";
+      
+      let errorMessageText = "Failed to start AR experience.";
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessageText = "Camera access denied. Please allow camera access and try again.";
+      } else if (error.name === 'NotFoundError') {
+        errorMessageText = "No camera found on this device.";
+      } else if (error.name === 'NotSupportedError') {
+        errorMessageText = "Your browser doesn't support WebAR features.";
+      } else if (error.message.includes('WebAR')) {
+        errorMessageText = "WebAR is not supported in this browser. Try using Chrome or Safari on mobile.";
+      }
+      
+      errorText.textContent = errorMessageText;
+      errorMessage.style.display = "block";
+    }
+  });
+
+  // Обработка ошибок загрузки видео
+  window.addEventListener('load', () => {
+    const video = document.querySelector('a-video');
+    if (video) {
+      video.addEventListener('error', () => {
+        console.error('Video failed to load');
+        errorText.textContent = "Failed to load video content.";
+        errorMessage.style.display = "block";
+      });
     }
   });
 </script>
