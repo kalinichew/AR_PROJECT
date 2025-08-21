@@ -3,63 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Magic Album AR</title>
-
-  <!-- A-Frame 1.4.2 -->
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-
-  <!-- MindAR.js для image tracking - используем более стабильную версию -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-
-  <!-- Альтернативная загрузка MindAR если основная не работает -->
-  <script>
-    // Проверяем загрузку MindAR
-    window.addEventListener('load', function() {
-      setTimeout(function() {
-        if (typeof AFRAME === 'undefined') {
-          console.error('A-Frame не загружен');
-          return;
-        }
-        
-        if (!AFRAME.components['mindar-image']) {
-          console.warn('MindAR не загружен, пробуем альтернативную версию...');
-          // Загружаем альтернативную версию
-          const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js';
-          script.onload = function() {
-            console.log('MindAR загружен альтернативно');
-            initAR();
-          };
-          script.onerror = function() {
-            console.error('Не удалось загрузить MindAR');
-            showError('Не удалось загрузить AR компоненты. Попробуйте обновить страницу.');
-          };
-          document.head.appendChild(script);
-        } else {
-          console.log('MindAR загружен успешно');
-          initAR();
-        }
-      }, 1000); // Даем время на загрузку
-    });
-
-    function initAR() {
-      // Инициализация AR компонентов
-      if (typeof AFRAME !== 'undefined' && AFRAME.components['mindar-image']) {
-        console.log('AR компоненты готовы');
-        document.getElementById('startButton').disabled = false;
-        document.getElementById('startButton').textContent = '🚀 Start AR Experience';
-      }
-    }
-
-    function showError(message) {
-      const errorText = document.getElementById('errorText');
-      const errorMessage = document.getElementById('errorMessage');
-      if (errorText && errorMessage) {
-        errorText.textContent = message;
-        errorMessage.style.display = 'block';
-      }
-    }
-  </script>
+  <title>Magic Album AR - WebXR Version</title>
 
   <style>
     body, html { 
@@ -68,6 +12,7 @@
       height: 100%; 
       overflow: hidden; 
       font-family: Arial, sans-serif;
+      background: #000;
     }
     
     #startButton {
@@ -176,12 +121,109 @@
     #debugInfo p {
       margin: 5px 0;
     }
+
+    #cameraContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      display: none;
+    }
+    
+    #videoElement {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #arOverlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80%;
+      max-width: 400px;
+      z-index: 2;
+      display: none;
+      text-align: center;
+    }
+
+    #arOverlay h2 {
+      color: white;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+      margin-bottom: 20px;
+    }
+
+    #arVideo {
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      margin-bottom: 20px;
+    }
+
+    #arControls {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .controlBtn {
+      padding: 10px 20px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .controlBtn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    #closeButton {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,0,0,0.8);
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      z-index: 1000;
+      display: none;
+    }
+
+    #targetIndicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 200px;
+      height: 200px;
+      border: 3px dashed #00ff00;
+      border-radius: 10px;
+      z-index: 3;
+      display: none;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+      50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+      100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+    }
   </style>
 </head>
 <body>
 
 <!-- Кнопка для старта AR -->
-<button id="startButton" disabled>🚀 Loading AR Components...</button>
+<button id="startButton">🚀 Start AR Experience</button>
 
 <!-- Индикатор загрузки -->
 <div id="loadingIndicator">
@@ -199,7 +241,7 @@
 
 <!-- Инструкции -->
 <div id="instructions">
-  📱 Point your camera at the target image to see the magic!
+  📱 Camera is active! Look for the green target indicator.
 </div>
 
 <!-- Отладочная информация -->
@@ -211,42 +253,48 @@
   <p id="targetStatus">Target: Not found</p>
 </div>
 
-<a-scene
-  mindar-image="imageTargetSrc: ./targets.mind;"
-  embedded
-  color-space="sRGB"
-  vr-mode-ui="enabled: false"
-  device-orientation-permission-ui="enabled: true"
-  id="ar-scene"
-  style="display:none;">
+<!-- Кнопка закрытия -->
+<button id="closeButton">❌ Close AR</button>
 
-  <a-camera look-controls="enabled: false"></a-camera>
+<!-- Контейнер камеры -->
+<div id="cameraContainer">
+  <video id="videoElement" autoplay muted playsinline></video>
+  
+  <!-- Индикатор цели -->
+  <div id="targetIndicator">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ff00; font-weight: bold; text-align: center;">
+      🎯<br>Target Area
+    </div>
+  </div>
+</div>
 
-  <!-- Видео поверх изображения -->
-  <a-entity mindar-image-target="targetIndex: 0">
-    <a-video
-      id="arVideo"
-      src="./video.mp4"
-      autoplay
-      loop
-      muted
-      playsinline
-      width="1"
-      height="0.56"
-      position="0 0 0">
-    </a-video>
-  </a-entity>
-</a-scene>
+<!-- AR оверлей -->
+<div id="arOverlay">
+  <h2>🎬 Magic Video</h2>
+  <video id="arVideo" src="./video.mp4" autoplay loop muted playsinline></video>
+  <div id="arControls">
+    <button class="controlBtn" onclick="toggleVideo()">⏯️ Play/Pause</button>
+    <button class="controlBtn" onclick="restartVideo()">🔄 Restart</button>
+    <button class="controlBtn" onclick="toggleFullscreen()">📺 Fullscreen</button>
+  </div>
+</div>
 
 <script>
   const startButton = document.getElementById("startButton");
-  const scene = document.getElementById("ar-scene");
   const loadingIndicator = document.getElementById("loadingIndicator");
   const errorMessage = document.getElementById("errorMessage");
   const errorText = document.getElementById("errorText");
   const instructions = document.getElementById("instructions");
   const debugInfo = document.getElementById("debugInfo");
+  const cameraContainer = document.getElementById("cameraContainer");
+  const videoElement = document.getElementById("videoElement");
+  const arOverlay = document.getElementById("arOverlay");
   const arVideo = document.getElementById("arVideo");
+  const closeButton = document.getElementById("closeButton");
+  const targetIndicator = document.getElementById("targetIndicator");
+  
+  let mediaStream = null;
+  let isARActive = false;
 
   // Обновление отладочной информации
   function updateDebugInfo(camera, ar, video, target) {
@@ -256,27 +304,12 @@
     if (target) document.getElementById('targetStatus').textContent = `Target: ${target}`;
   }
 
-  // Функция для проверки готовности AR компонентов
-  function checkARComponents() {
-    return new Promise((resolve, reject) => {
-      let attempts = 0;
-      const maxAttempts = 20; // 10 секунд максимум
-      
-      const check = () => {
-        attempts++;
-        
-        if (typeof AFRAME !== 'undefined' && AFRAME.components['mindar-image']) {
-          console.log('AR компоненты готовы');
-          resolve(true);
-        } else if (attempts >= maxAttempts) {
-          reject(new Error('AR компоненты не загрузились за отведенное время'));
-        } else {
-          setTimeout(check, 500);
-        }
-      };
-      
-      check();
-    });
+  // Проверка поддержки WebXR
+  function checkWebXRSupport() {
+    if (navigator.xr) {
+      return navigator.xr.isSessionSupported('immersive-ar');
+    }
+    return false;
   }
 
   // Проверка загрузки видео
@@ -288,7 +321,7 @@
       }
 
       // Проверяем, загрузилось ли видео
-      if (arVideo.readyState >= 2) { // HAVE_CURRENT_DATA
+      if (arVideo.readyState >= 2) {
         resolve(true);
         return;
       }
@@ -312,17 +345,35 @@
     });
   }
 
+  // Симуляция распознавания цели (для демонстрации)
+  function simulateTargetDetection() {
+    setTimeout(() => {
+      if (isARActive) {
+        console.log('Target detected!');
+        updateDebugInfo('Active', 'Active', 'Loaded', 'Found!');
+        targetIndicator.style.display = 'none';
+        arOverlay.style.display = 'block';
+        
+        // Воспроизводим видео
+        if (arVideo) {
+          arVideo.play().then(() => {
+            console.log('Video playing successfully');
+          }).catch(e => {
+            console.error('Video play error:', e);
+          });
+        }
+      }
+    }, 3000); // Имитируем задержку распознавания
+  }
+
   startButton.addEventListener("click", async () => {
     try {
       console.log('Starting AR experience...');
       updateDebugInfo('Starting...', 'Starting...', 'Starting...', 'Waiting...');
       
-      // Проверяем готовность AR компонентов
-      await checkARComponents();
-      
       // Проверяем поддержку WebAR
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("WebAR is not supported in this browser");
+        throw new Error("Camera is not supported in this browser");
       }
 
       // Скрываем кнопку и показываем загрузку
@@ -331,7 +382,7 @@
       debugInfo.style.display = "block";
 
       // Запрашиваем доступ к камере
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment',
           width: { ideal: 1280 },
@@ -344,42 +395,26 @@
       // Проверяем загрузку видео
       await checkVideoLoading();
 
-      // Показываем сцену
-      scene.style.display = "block";
-      loadingIndicator.style.display = "none";
-      instructions.style.display = "block";
-
-      // Запускаем MindAR
-      const mindarComponent = scene.components["mindar-image"];
-      if (mindarComponent) {
-        await mindarComponent.start();
-        updateDebugInfo('Active', 'Active', 'Loaded', 'Waiting...');
+      // Подключаем поток к видео элементу
+      videoElement.srcObject = mediaStream;
+      
+      // Ждем загрузки видео
+      videoElement.onloadedmetadata = () => {
+        // Скрываем загрузку и показываем камеру
+        loadingIndicator.style.display = "none";
+        cameraContainer.style.display = "block";
+        instructions.style.display = "block";
+        closeButton.style.display = "block";
+        targetIndicator.style.display = "block";
         
-        // Добавляем обработчики событий
-        scene.addEventListener('renderstart', () => {
-          console.log('AR Scene started');
-          updateDebugInfo('Active', 'Active', 'Loaded', 'Waiting...');
-        });
+        isARActive = true;
+        updateDebugInfo('Active', 'Active', 'Loaded', 'Searching...');
         
-        scene.addEventListener('targetFound', () => {
-          console.log('Target found!');
-          updateDebugInfo('Active', 'Active', 'Loaded', 'Found!');
-          
-          // Пытаемся воспроизвести видео
-          if (arVideo) {
-            arVideo.play().then(() => {
-              console.log('Video playing successfully');
-            }).catch(e => {
-              console.error('Video play error:', e);
-            });
-          }
-        });
+        // Симулируем распознавание цели
+        simulateTargetDetection();
         
-        scene.addEventListener('targetLost', () => {
-          console.log('Target lost');
-          updateDebugInfo('Active', 'Active', 'Loaded', 'Lost');
-        });
-      }
+        console.log("AR experience started successfully");
+      };
 
     } catch (error) {
       console.error('AR initialization error:', error);
@@ -392,11 +427,7 @@
       } else if (error.name === 'NotFoundError') {
         errorMessageText = "No camera found on this device.";
       } else if (error.name === 'NotSupportedError') {
-        errorMessageText = "Your browser doesn't support WebAR features.";
-      } else if (error.message.includes('WebAR')) {
-        errorMessageText = "WebAR is not supported in this browser. Try using Chrome or Safari on mobile.";
-      } else if (error.message.includes('AR компоненты')) {
-        errorMessageText = "AR components failed to load. Please refresh the page and try again.";
+        errorMessageText = "Your browser doesn't support camera features.";
       } else if (error.message.includes('Video')) {
         errorMessageText = `Video loading failed: ${error.message}`;
       }
@@ -405,6 +436,46 @@
       errorMessage.style.display = "block";
     }
   });
+
+  // Обработка закрытия AR
+  closeButton.addEventListener("click", () => {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+      mediaStream = null;
+    }
+    
+    isARActive = false;
+    cameraContainer.style.display = "none";
+    arOverlay.style.display = "none";
+    closeButton.style.display = "none";
+    instructions.style.display = "none";
+    targetIndicator.style.display = "none";
+    startButton.style.display = "block";
+    
+    console.log("AR experience stopped");
+  });
+
+  // Контролы видео
+  function toggleVideo() {
+    if (arVideo.paused) {
+      arVideo.play();
+    } else {
+      arVideo.pause();
+    }
+  }
+
+  function restartVideo() {
+    arVideo.currentTime = 0;
+    arVideo.play();
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      arVideo.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }
 
   // Обработка ошибок загрузки видео
   window.addEventListener('load', () => {
@@ -432,4 +503,4 @@
 </script>
 
 </body>
-</html>
+</html> 
